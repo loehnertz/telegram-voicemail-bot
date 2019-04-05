@@ -7,5 +7,7 @@
   "messageSuccess": "",
   "regionName": "",
   "secret": "",
-  "uploadPath": ""
+  "textHandlerActive": true,
+  "uploadPath": "",
+  "voicemailHandlerActive": true
 }

@@ -4,6 +4,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from telegram import ParseMode
 from telegram.ext import Updater, MessageHandler, Filters
 
 from backend.uploader import Uploader
@@ -25,7 +26,9 @@ class Bot:
     MESSAGE_SUCCESS_KEY = 'messageSuccess'
     REGION_NAME_KEY = 'regionName'
     SECRET_KEY = 'secret'
+    TEXT_HANDLER_ACTIVE_KEY = 'textHandlerActive'
     UPLOAD_PATH_KEY = 'uploadPath'
+    VOICE_MAIL_HANDLER_ACTIVE_KEY = 'voicemailHandlerActive'
 
     def __init__(self):
         self.config = self._load_config()
@@ -33,6 +36,8 @@ class Bot:
         self.bot_token = self._retrieve_bot_token()
         self.message_success = self._retrieve_message_success()
         self.admin_user_id = self.config.get(self.ADMIN_USER_KEY)
+        self.text_handler_active = self.config.get(self.TEXT_HANDLER_ACTIVE_KEY)
+        self.voice_mail_handler_active = self.config.get(self.VOICE_MAIL_HANDLER_ACTIVE_KEY)
 
     def start(self):
         logger.info('Bot back-end is running...')
@@ -40,12 +45,44 @@ class Bot:
         updater = Updater(self.bot_token)
         dispatcher = updater.dispatcher
 
-        dispatcher.add_handler(MessageHandler(Filters.voice, self.voicemail_handler))
+        if self.text_handler_active:
+            dispatcher.add_handler(MessageHandler(Filters.text, self.text_message_handler))
+
+        if self.voice_mail_handler_active:
+            dispatcher.add_handler(MessageHandler(Filters.voice, self.voice_mail_handler))
 
         updater.start_polling()
         updater.idle()
 
-    def voicemail_handler(self, bot, context):
+    def text_message_handler(self, bot, context):
+        message = context.message.text
+
+        full_name = context.effective_user.full_name
+        username = context.effective_user.name
+        file_path = f'/tmp/{full_name} ({username}) {datetime.now()}.txt'
+
+        with open(file_path, 'w') as file:
+            file.write(message)
+
+        if self.admin_user_id:
+            bot.send_message(
+                chat_id=self.admin_user_id,
+                text=f'A new text message arrived by: {full_name} ({username})\n\n```\n{message}\n```',
+                parse_mode=ParseMode.MARKDOWN,
+            )
+
+        self.uploader.upload_file_privately(
+            file_location=file_path,
+            upload_path=self.upload_path,
+            bucket=self.bucket_name,
+        )
+        self.delete_file(file_path)
+
+        bot.send_message(chat_id=context.message.chat_id, text=self.message_success)
+
+        logger.info(f"Received and saved incoming text message at file path '{file_path}'")
+
+    def voice_mail_handler(self, bot, context):
         file = bot.getFile(context.message.voice.file_id)
 
         full_name = context.effective_user.full_name
