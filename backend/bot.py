@@ -7,7 +7,7 @@ from pathlib import Path
 from telegram import ParseMode
 from telegram.ext import Updater, MessageHandler, Filters
 
-from backend.uploader import Uploader
+from uploader import Uploader
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
